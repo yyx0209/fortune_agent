@@ -51,8 +51,8 @@ st.set_page_config(page_title="八字 Agent", layout="wide", page_icon="🪙")
 
 # ============== 顶部 ==============
 
-st.title("八字 Agent — 多模型 + 排盘验算")
-st.caption("Tool 排盘（确定性）→ 多模型定格局/用神 → 大运·流年解读并对照前事 → 冲突仲裁。仅供研究 / 娱乐参考。")
+st.title("八字洞察引擎：先验盘，再验事，后定未来")
+st.caption("精准排盘打底 + 多模型交叉验证 + 前事回验+ 分歧仲裁。让命理判断更稳、更准、更可解释。仅供研究 / 娱乐参考。")
 
 MODEL_OPTIONS = [
     MODEL_GPT,
