@@ -1,5 +1,7 @@
 import requests
 from typing import Dict, Any
+import os
+import streamlit as st
 
 
 def test_openrouter_model(
@@ -90,12 +92,18 @@ def test_openrouter_model(
     
 
 if __name__ == "__main__":
-    API_KEY = "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"
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    if not api_key:
+        api_key = st.secrets.get("OPENROUTER_API_KEY", "")
+    if api_key:
+        st.success("已读取 OpenRouter API Key（.env 或 Streamlit secrets）")
+    else:
+        st.error("未发现 OPENROUTER_API_KEY（请配置 .env 或 Streamlit secrets）")
 
     result = test_openrouter_model(
         model="claude-opus-4.6",
         query="Explain ROI vs spend trade-off briefly.",
-        api_key=API_KEY
+        api_key=api_key
     )
 
     print(result['response'])
