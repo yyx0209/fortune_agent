@@ -125,11 +125,24 @@ ROUND2_SYSTEM = """
 
 1. 大运、流年的干支以输入中的 dayun_table / liunian_table 为准；
    严禁自行推算、改写、补全任何干支；表里没有的年份不要谈。
-2. 必须把每条用户"前事"对应到具体公历年份与干支，并判断与当前用神候选是否一致；
-3. 若发现"前事 ↔ 用神 ↔ 流年解释"不一致，必须如实写入 conflicts，禁止粉饰；
-4. 当存在多个用神候选时，优先用 primary_hypothesis 解释；同时在
+2. 必须把每条用户"前事"对应到具体公历年份与干支，并结合该条的 feeling（吉/凶/动/平）
+   判断「体感方向是否与用神喜忌 + 你对该年/大运的叙事一致」；
+   在 past_event_alignment.explanation 中必须点名用户的 feeling 以及你如何对照理论（勿省略）。
+3. conflicts 仅用于「逻辑不自洽」或「同一事实链上无法同时成立」的矛盾，禁止把「忌神流年应验凶」误报成冲突。
+   判定纠偏（极其重要）：
+   - 若 primary 用神为火（示例），流年或大运为金、水等明显忌神方向，用户体感为凶或事件负面：
+     这属于顺应忌神的应验，past_event_alignment.consistency 应为 ok，
+     在 explanation 写清「忌神作用 → 不顺合理」；不得因此写入 conflicts。
+   - 只有在例如：流年叙事写成大吉、用神得利，却与用户「凶」及事实叙述尖锐对立，
+     或你的 key_year_interpretations 与该年干支喜忌叙事自相矛盾时，才考虑 conflict / insufficient_info。
+   - feeling「动」：表示转折、变动，不等于凶或吉；勿仅因「有变动」或干支刑冲就判为 conflict；
+     应判断是否「发生变动」与变动线索相符。
+   - feeling「平」：体感弱；优先 insufficient_info 或 ok（叙事温和），勿强行制造 conflicts。
+4. 若发现"前事 ↔（含 feeling）用神 ↔ 流年解释"真正不一致，必须如实写入 conflicts，禁止粉饰；
+   但若仅是忌神岁运应验不快，这不是不一致，不得写入 conflicts。
+5. 当存在多个用神候选时，优先用 primary_hypothesis 解释；同时在
    past_event_alignment 中标注哪个候选对该前事更吻合。
-5. 评分必须按"普通人群百分位"严格映射，不可使用"保守中间分"敷衍。
+6. 评分必须按"普通人群百分位"严格映射，不可使用"保守中间分"敷衍。
 
 百分位评分硬规则（必须执行）：
 - 1分: P0-5
@@ -190,11 +203,12 @@ def build_round2_prompt(
             {
                 "event": "原文",
                 "year": 2020,
+                "user_feeling": "吉|凶|动|平（须从输入照抄）",
                 "year_ganzhi": "庚子",
                 "in_dayun_ganzhi": "...",
                 "best_fit_hypothesis_id": "H1",
                 "consistency": "ok|conflict|insufficient_info",
-                "explanation": "为何一致或冲突",
+                "explanation": "为何一致或冲突（必须点名 user_feeling 与用神喜忌是否同向）",
             }
         ],
         "conflicts": [
@@ -239,6 +253,7 @@ def build_round2_prompt(
 {json.dumps(liunian_table, ensure_ascii=False, indent=2)}
 
 【用户已发生之事】
+每条含 event / year / feeling；feeling 取值 吉|凶|动|平，必须与 past_event_alignment、conflicts 判定一并使用（不得忽略）。
 {json.dumps(events, ensure_ascii=False, indent=2)}
 
 输出深度要求（必须满足）：
@@ -259,6 +274,10 @@ def build_round2_prompt(
 
 RECONCILE_SYSTEM = """
 你是矛盾仲裁员。本次任务仅处理一个具体冲突，不要重写整篇报告，不要引入未提供的事实。
+
+先判别冲突是否成立：若本质是「忌神岁运应验不快」（如用神喜火而金水岁运用户体感凶），
+属于合理应验而非逻辑矛盾，应优先 patch_year_interpretation（修正过于乐观/矛盾的流年表述）
+或 accept_as_low_confidence，不要将用神候选改为与primary相反方向除非前事强证据要求。
 
 你只能在以下 4 种结论中选 1 个：
 - update_use_gods             第一轮用神候选需要修正/重排（仅当前事强证据指向另一候选时）
@@ -386,4 +405,81 @@ def build_final_prompt(
 11. 末尾附"仅供研究或娱乐参考"。
 
 直接输出报告正文（可使用 Markdown 标题），不要 JSON。
+""".strip()
+
+
+# ===================== Follow-up：报告生成后的追问 =====================
+
+FOLLOWUP_SYSTEM = """
+你是本轮八字分析的后续答疑助手。用户已看过基于排盘与多步推理得出的材料（见用户消息中的上下文）。
+
+规则：
+1. 仅依据上下文作答；上下文中没有的信息不要编造；必要时可作出合理推断，但必须标明「推断」。
+2. 不要与前文已定结论明显矛盾；若用户追问暴露出潜在矛盾，如实说明不确定性或限定讨论范围。
+3. 回答要有结构：先直接回应，再按需分点；涉及具体年份时，干支必须与上下文流年表一致，禁止自行另排四柱/流年。
+4. 语气克制；末尾可简短附「仅供研究或娱乐参考」。
+""".strip()
+
+_FOLLOWUP_REPORT_MAX = 18_000
+_FOLLOWUP_ROUND2_MAX = 14_000
+# 与前端「最大追问次数」一致：最多 5 轮问答时，历史上限最多 4 条已完成轮次；留 1 的余量无妨
+_FOLLOWUP_PRIOR_TURNS_MAX = 5
+
+
+def _truncate_blob(label: str, text: str, max_chars: int) -> str:
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + f"\n\n…（{label}已截断，共 {len(text)} 字）"
+
+
+def build_followup_user_prompt(
+    chart: Dict[str, Any],
+    events: List[Dict[str, Any]],
+    round1_consensus: Dict[str, Any],
+    round2_result: Dict[str, Any],
+    reconcile_log: List[Dict[str, Any]],
+    final_report: str,
+    prior_turns: List[Dict[str, str]],
+    user_question: str,
+) -> str:
+    r2_json = json.dumps(round2_result, ensure_ascii=False, indent=2)
+    r2_blob = _truncate_blob("第二轮 JSON", r2_json, _FOLLOWUP_ROUND2_MAX)
+    report_blob = _truncate_blob("最终报告", final_report, _FOLLOWUP_REPORT_MAX)
+
+    history_lines = []
+    for t in (prior_turns or [])[-_FOLLOWUP_PRIOR_TURNS_MAX:]:
+        q = (t.get("question") or "").strip()
+        a = (t.get("answer") or "").strip()
+        if q:
+            history_lines.append(f"【用户】{q}")
+        if a:
+            history_lines.append(f"【助手】{a}")
+    history_block = "\n\n".join(history_lines) if history_lines else "（尚无过往追问）"
+
+    return f"""
+【命局与排盘（tool，为准）】
+{json.dumps(chart, ensure_ascii=False, indent=2)}
+
+【用户前事（含体感）】
+{json.dumps(events, ensure_ascii=False, indent=2)}
+
+【第一轮共识（格局 / 用神候选）】
+{json.dumps(round1_consensus, ensure_ascii=False, indent=2)}
+
+【第二轮要点（JSON；流年与前事对齐等）】
+{r2_blob}
+
+【仲裁记录（如有）】
+{json.dumps(reconcile_log or [], ensure_ascii=False, indent=2)}
+
+【最终报告正文】
+{report_blob}
+
+【本轮追问历史】
+{history_block}
+
+【用户新问题】
+{user_question.strip()}
+
+请直接用 Markdown 作答（不要用 JSON）。
 """.strip()

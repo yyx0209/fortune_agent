@@ -45,6 +45,8 @@ from prompts import (
     build_reconcile_prompt,
     FINAL_SYSTEM,
     build_final_prompt,
+    FOLLOWUP_SYSTEM,
+    build_followup_user_prompt,
 )
 
 
@@ -276,6 +278,43 @@ def write_final(
             },
         ],
         temperature=0,
+    )
+
+
+def answer_followup(
+    chart: Dict[str, Any],
+    events: List[Dict[str, Any]],
+    round1_consensus: Dict[str, Any],
+    round2_result: Dict[str, Any],
+    reconcile_log: List[Dict[str, Any]],
+    final_report: str,
+    prior_turns: List[Dict[str, Any]],
+    user_question: str,
+    api_key: str,
+    model: str,
+) -> str:
+    """基于已有分析材料回答追问（单次调用，上下文打包在用户消息内）。"""
+    print(f"[Follow-up] {model} ...")
+    return call_openrouter(
+        model=model,
+        api_key=api_key,
+        messages=[
+            {"role": "system", "content": FOLLOWUP_SYSTEM},
+            {
+                "role": "user",
+                "content": build_followup_user_prompt(
+                    chart,
+                    events,
+                    round1_consensus,
+                    round2_result,
+                    reconcile_log,
+                    final_report,
+                    prior_turns,
+                    user_question,
+                ),
+            },
+        ],
+        temperature=0.2,
     )
 
 

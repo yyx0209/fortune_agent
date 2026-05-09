@@ -43,6 +43,7 @@ from workflow import (
     reconcile_one,
     apply_reconcile_patch,
     write_final,
+    answer_followup,
 )
 
 dotenv.load_dotenv()
@@ -60,6 +61,8 @@ MODEL_OPTIONS = [
     MODEL_QWEN,
     MODEL_DEEPSEEK,
 ]
+
+MAX_FOLLOWUP_QUESTIONS = 5
 
 # ============== Sidebar：输入 ==============
 
@@ -144,6 +147,8 @@ with st.sidebar:
 
 if "result" not in st.session_state:
     st.session_state["result"] = None
+if "followup_turns" not in st.session_state:
+    st.session_state["followup_turns"] = []
 
 # ============== 执行 ==============
 
@@ -411,7 +416,9 @@ if run_btn:
         "reconcile_log": reconcile_log,
         "final_report": report,
         "output_dir": str(output_dir),
+        "final_model": final_model,
     }
+    st.session_state["followup_turns"] = []
     st.toast("分析完成", icon="✅")
 
 # ============== 结果展示 ==============
@@ -420,13 +427,108 @@ result = st.session_state.get("result")
 if result:
     st.divider()
     tabs = st.tabs(
-        ["📜 最终报告", "🔮 排盘", "1️⃣ 第一轮", "2️⃣ 第二轮", "⚖️ 仲裁日志", "💾 下载"]
+        [
+            "📜 最终报告",
+            "💬 追问",
+            "🔮 排盘",
+            "1️⃣ 第一轮",
+            "2️⃣ 第二轮",
+            "⚖️ 仲裁日志",
+            "💾 下载",
+        ]
     )
 
     with tabs[0]:
         st.markdown(result["final_report"])
 
     with tabs[1]:
+        st.caption(
+            "基于当前这一次分析的排盘、共识与报告作答；会调用 OpenRouter（消耗额度）。"
+            f"同一报告最多追问 **{MAX_FOLLOWUP_QUESTIONS}** 次；重新「开始分析」后追问记录会清空。"
+        )
+        fm_default = result.get("final_model") or DEFAULT_FINAL_MODEL
+        idx_fm = (
+            MODEL_OPTIONS.index(fm_default)
+            if fm_default in MODEL_OPTIONS
+            else 0
+        )
+        follow_model = st.selectbox(
+            "追问所用模型",
+            options=MODEL_OPTIONS,
+            index=idx_fm,
+            key="followup_model_choice",
+        )
+
+        turns = st.session_state.get("followup_turns") or []
+        followup_at_limit = len(turns) >= MAX_FOLLOWUP_QUESTIONS
+        if followup_at_limit:
+            st.warning(
+                f"已达到本次分析的最大追问次数（{MAX_FOLLOWUP_QUESTIONS} 次）。"
+                "可清空记录后重新开始追问，或重新跑一次完整分析。"
+            )
+        if turns:
+            st.subheader("对话记录")
+            for i, turn in enumerate(turns, 1):
+                with st.container(border=True):
+                    st.markdown(f"**追问 {i}**")
+                    st.markdown(turn.get("question") or "")
+                    st.markdown("**回答**")
+                    st.markdown(turn.get("answer") or "")
+        else:
+            st.info("还没有追问。可以先在「最终报告」 tab 看完结论，再在此输入问题。")
+
+        fq = st.text_area(
+            "输入追问（可多轮）",
+            height=120,
+            placeholder="例如：未来三年若有跳槽打算，哪些年份更值得争取？依据报告里哪一段？",
+            key="followup_question_input",
+        )
+        c_f1, c_f2 = st.columns([1, 1])
+        with c_f1:
+            send_follow = st.button(
+                "发送追问",
+                type="primary",
+                key="followup_send_btn",
+                disabled=followup_at_limit,
+            )
+        with c_f2:
+            if st.button("清空追问记录", key="followup_clear_btn"):
+                st.session_state["followup_turns"] = []
+                st.rerun()
+
+        if send_follow:
+            qtext = (fq or "").strip()
+            if not api_key:
+                st.error("未配置 OPENROUTER_API_KEY，无法追问")
+            elif len(turns) >= MAX_FOLLOWUP_QUESTIONS:
+                st.warning(f"已达到最大追问次数（{MAX_FOLLOWUP_QUESTIONS} 次）")
+            elif not qtext:
+                st.warning("请先输入追问内容")
+            else:
+                try:
+                    with st.spinner(f"追问中（{follow_model}）…"):
+                        ans = answer_followup(
+                            result["chart"],
+                            result.get("events") or [],
+                            result["round1_consensus"],
+                            result["round2_result"],
+                            result.get("reconcile_log") or [],
+                            result["final_report"],
+                            turns,
+                            qtext,
+                            api_key,
+                            follow_model,
+                        )
+                except Exception as e:
+                    st.error(f"追问失败：{e}")
+                else:
+                    st.session_state.setdefault("followup_turns", []).append(
+                        {"question": qtext, "answer": ans}
+                    )
+                    st.session_state.pop("followup_question_input", None)
+                    st.rerun()
+
+    with tabs[2]:
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("四柱")
@@ -437,7 +539,7 @@ if result:
             st.subheader("大运")
             st.markdown(_to_markdown(result["chart"]["da_yun"]))
 
-    with tabs[2]:
+    with tabs[3]:
         st.subheader("整合共识")
         st.markdown(_to_markdown(result["round1_consensus"]))
         st.subheader("各模型原始输出")
@@ -445,16 +547,16 @@ if result:
             with st.expander(f"{r.get('_speaker')} — {r.get('_model')}"):
                 st.markdown(_to_markdown(r))
 
-    with tabs[3]:
+    with tabs[4]:
         st.markdown(_to_markdown(result["round2_result"]))
 
-    with tabs[4]:
+    with tabs[5]:
         if result["reconcile_log"]:
             st.markdown(_to_markdown(result["reconcile_log"]))
         else:
             st.info("无冲突，未触发仲裁")
 
-    with tabs[5]:
+    with tabs[6]:
         out_dir = Path(result["output_dir"])
         st.write(f"输出目录：`{out_dir}`")
         markdown_exports = [
