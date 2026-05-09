@@ -161,6 +161,14 @@ ROUND2_SYSTEM = """
   1) 不允许超过 3 项使用同一分数；
   2) 5分+6分合计最多 4 项；
   3) 若证据不足，可标 low_confidence，但仍要给分并解释不确定来源。
+
+个性化 / 反模板规则（必须执行）：
+- scores 必须「一案一谱」：只依据当前输入中的排盘、用神候选、大运/流年表与用户前事推导；禁止套用你对「典型命主」的习惯性打分轮廓。
+- 严禁多人多套输出趋向同一「人设向量」（例如反复出现学业≈8、财运≈4、事业≈7 等相近组合）；除非你在每个维度的 reason 里都能指向**本案不同的**具体干支、十神或运程证据，否则视为不合格输出。
+- 数值离散底线（在证据允许的前提下应尽量满足；若命局证据客观上拉不开，须在 score_distribution_check.self_check_note 写明理由并标 low_confidence）：
+  1) 8 项 score 中 max(score) - min(score) ≥ 4；
+  2) 至少出现 4 个互不相同的分值；
+  3) 每个维度的 reason 至少包含一条「本命四柱或运程」中的具体锚点（如某柱干支、某十神、当前大运干支），禁止泛泛而谈的模板句。
 """.strip()
 
 
@@ -222,19 +230,19 @@ def build_round2_prompt(
         ],
         "future_focus": ["未来 5-10 年值得关注的大运/流年要点"],
         "scores": {
-            "事业": {"score": 7, "percentile_range": "P71-82", "reason": "...", "confidence": "high|mid|low"},
-            "财运": {"score": 4, "percentile_range": "P31-45", "reason": "...", "confidence": "high|mid|low"},
-            "婚恋": {"score": 6, "percentile_range": "P56-70", "reason": "...", "confidence": "high|mid|low"},
-            "健康": {"score": 5, "percentile_range": "P46-55", "reason": "...", "confidence": "high|mid|low"},
-            "学业": {"score": 8, "percentile_range": "P83-91", "reason": "...", "confidence": "high|mid|low"},
-            "贵人": {"score": 6, "percentile_range": "P56-70", "reason": "...", "confidence": "high|mid|low"},
-            "子女": {"score": 5, "percentile_range": "P46-55", "reason": "...", "confidence": "high|mid|low"},
-            "综合": {"score": 6, "percentile_range": "P56-70", "reason": "...", "confidence": "high|mid|low"},
+            "事业": {"score": None, "percentile_range": "必填，须与 score 满足上方百分位映射", "reason": "必填，须含本案具体干支/十神证据", "confidence": "high|mid|low"},
+            "财运": {"score": None, "percentile_range": "必填", "reason": "必填", "confidence": "high|mid|low"},
+            "婚恋": {"score": None, "percentile_range": "必填", "reason": "必填", "confidence": "high|mid|low"},
+            "健康": {"score": None, "percentile_range": "必填", "reason": "必填", "confidence": "high|mid|low"},
+            "学业": {"score": None, "percentile_range": "必填", "reason": "必填", "confidence": "high|mid|low"},
+            "贵人": {"score": None, "percentile_range": "必填", "reason": "必填", "confidence": "high|mid|low"},
+            "子女": {"score": None, "percentile_range": "必填", "reason": "必填", "confidence": "high|mid|low"},
+            "综合": {"score": None, "percentile_range": "必填", "reason": "必填", "confidence": "high|mid|low"},
         },
         "score_distribution_check": {
             "unique_scores_count": 0,
             "count_score_5_or_6": 0,
-            "self_check_note": "自检是否满足反集中化规则"
+            "self_check_note": "根据本轮 scores 如实填写计数（unique_scores_count、count_score_5_or_6 严禁抄示例 0），并说明是否满足反模板离散底线"
         },
     }
     schema_text = json.dumps(schema, ensure_ascii=False, indent=2)
@@ -260,8 +268,9 @@ def build_round2_prompt(
 1. dayun_summaries 至少覆盖 4 个关键阶段（若数据不足则覆盖全部可用阶段）；
 2. 每个阶段的 aspects 必须包含 8 个维度：事业/财运/婚恋/健康/学业/贵人/子女/综合；
 3. key_year_interpretations 至少给出 6 个年份；
-4. scores 必须包含上述 8 维度，且每项都要给 score + percentile_range + reason + confidence；
-5. 必须填写 score_distribution_check，保证分数不集中在 5/6。
+4. scores 必须仅包含上述 8 个键（事业、财运、婚恋、健康、学业、贵人、子女、综合），每项都要给 score（1-10 整数，禁止为 null）+ percentile_range + reason + confidence；
+   - 下文 schema 示范里 score 为 null 仅代表「此处应由你填写」，输出时必须全部为整数，且整套分数须遵守 SYSTEM 中的反模板 / 离散底线；
+5. 必须填写 score_distribution_check，保证分数不集中在 5/6，且满足 SYSTEM 中的个性化离散底线。
 
 请严格输出 JSON：
 {schema_text}
