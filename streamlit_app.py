@@ -139,6 +139,14 @@ with st.sidebar:
         )
         raw_focus_questions.append(q.strip())
 
+    st.subheader("报告称呼（可选）")
+    report_salutation = st.text_input(
+        "希望报告中如何称呼你（用于一级标题与开篇）",
+        value="",
+        key="report_salutation_input",
+        placeholder="如：小林、张女士、命主本人；不填则用中性标题，不用日干+性别自拟头衔",
+    )
+
     st.subheader("模型设置")
     consensus_model = st.selectbox(
         "整合 / 第二轮模型",
@@ -415,8 +423,15 @@ if run_btn:
     with st.status("Step 4 — 生成最终报告", expanded=True) as s4:
         with st.spinner(f"撰写中（{final_model}）..."):
             report = write_final(
-                chart, events, round1_consensus, round2_result, reconcile_log,
-                api_key, final_model, focus_questions,
+                chart,
+                events,
+                round1_consensus,
+                round2_result,
+                reconcile_log,
+                api_key,
+                final_model,
+                focus_questions,
+                report_salutation=report_salutation.strip() or None,
             )
         _save_text(report, str(output_dir / "final_report.md"))
         s4.update(label="Step 4 — 完成", state="complete")
@@ -433,6 +448,7 @@ if run_btn:
         "final_report": report,
         "output_dir": str(output_dir),
         "final_model": final_model,
+        "report_salutation": (report_salutation.strip() or None),
     }
     st.session_state["followup_turns"] = []
     st.session_state["result_tab_idx"] = 0
@@ -533,7 +549,7 @@ if result:
                 try:
                     status_msg = (
                         f"🧠 **正在思考中** · 模型 `{follow_model}` 生成回答中，"
-                        "可能需要数十秒。**页面未卡住**，请稍候。"
+                        "可能需要数十秒。"
                     )
                     with st.status("🧠 正在思考中…", expanded=True) as thought:
                         st.markdown(status_msg)

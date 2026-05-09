@@ -263,6 +263,7 @@ def write_final(
     api_key: str,
     model: str,
     focus_questions: List[str] | None = None,
+    report_salutation: str | None = None,
 ) -> str:
     print(f"[Final] {model} ...")
     return call_openrouter(
@@ -273,7 +274,13 @@ def write_final(
             {
                 "role": "user",
                 "content": build_final_prompt(
-                    chart, events, round1_consensus, round2_result, reconcile_log, focus_questions
+                    chart,
+                    events,
+                    round1_consensus,
+                    round2_result,
+                    reconcile_log,
+                    focus_questions,
+                    report_salutation=report_salutation,
                 ),
             },
         ],
@@ -331,6 +338,7 @@ def run_fortune(
     reconcile_model: str = DEFAULT_CONSENSUS_MODEL,
     final_model: str = DEFAULT_FINAL_MODEL,
     focus_questions: List[str] | None = None,
+    report_salutation: str | None = None,
     max_reconcile_iters: int = 2,
     extra_year_window: int = 15,
 ) -> Dict[str, Any]:
@@ -448,6 +456,7 @@ def run_fortune(
         api_key,
         final_model,
         focus_questions,
+        report_salutation=report_salutation,
     )
     _save_text(report, os.path.join(output_dir, "final_report.md"))
 

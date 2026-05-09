@@ -353,8 +353,24 @@ def build_final_prompt(
     round2_result: Dict[str, Any],
     reconcile_log: List[Dict[str, Any]],
     focus_questions: List[str] | None = None,
+    report_salutation: str | None = None,
 ) -> str:
     focus_questions = [q for q in (focus_questions or []) if isinstance(q, str) and q.strip()][:3]
+    sal = (report_salutation or "").strip()
+    if sal:
+        sal_instruction = (
+            f'用户指定的称呼为「{sal}」。报告正文最上方一级 Markdown 标题必须直接使用该称呼，'
+            f'可采用「【{sal}】……分析报告」「{sal}｜八字综合分析」等形式之一，勿改写或替换为用户姓名以外的绰号编造。'
+        )
+        sal_field = sal
+    else:
+        sal_instruction = (
+            "用户未填写称呼：一级标题须使用中性题目（例如「八字综合分析报告」「命局流年综述」），"
+            "禁止使用「日干四柱干支 + 先生/女士」等方式自拟头衔作主标题（如「壬辰女士专属……」一类）；"
+            "正文人称可用「命主」「您」"
+        )
+        sal_field = "（未填写）"
+
     return f"""
 【排盘】
 {json.dumps(chart, ensure_ascii=False, indent=2)}
@@ -374,7 +390,12 @@ def build_final_prompt(
 【用户最关心的问题（至多3条，可能为空）】
 {json.dumps(focus_questions, ensure_ascii=False, indent=2)}
 
+【报告称呼】
+{json.dumps(sal_field, ensure_ascii=False)}
+标题规则：{sal_instruction}
+
 请写一份"面向用户的最终八字报告"，要求：
+0. 已遵守上文「报告称呼 / 标题规则」，最先输出合规的一级标题；
 1. 先交代命局结构与最终选定用神（说明是否经过前事修正）；
 2. 大运分段评述要详细，不少于 4 个阶段；每阶段都要按 8 维度写：事业、财运、婚恋、健康、学业、贵人、子女、综合；
 3. 重点流年评述不少于 6 个年份（优先覆盖前事年份与未来关键年份）；
