@@ -64,6 +64,18 @@ MODEL_OPTIONS = [
 
 MAX_FOLLOWUP_QUESTIONS = 5
 
+# 结果区视图（替代 st.tabs，便于追问完成后停留在当前 tab）
+RESULT_TAB_LABELS = [
+    "📜 最终报告",
+    "💬 追问",
+    "🔮 排盘",
+    "1️⃣ 第一轮",
+    "2️⃣ 第二轮",
+    "⚖️ 仲裁日志",
+    "💾 下载",
+]
+RESULT_TAB_FOLLOWUP = 1
+
 # ============== Sidebar：输入 ==============
 
 with st.sidebar:
@@ -149,6 +161,10 @@ if "result" not in st.session_state:
     st.session_state["result"] = None
 if "followup_turns" not in st.session_state:
     st.session_state["followup_turns"] = []
+if "result_tab_idx" not in st.session_state:
+    st.session_state["result_tab_idx"] = 0
+if "followup_input_revision" not in st.session_state:
+    st.session_state["followup_input_revision"] = 0
 
 # ============== 执行 ==============
 
@@ -419,6 +435,8 @@ if run_btn:
         "final_model": final_model,
     }
     st.session_state["followup_turns"] = []
+    st.session_state["result_tab_idx"] = 0
+    st.session_state["followup_input_revision"] = 0
     st.toast("分析完成", icon="✅")
 
 # ============== 结果展示 ==============
@@ -426,22 +444,27 @@ if run_btn:
 result = st.session_state.get("result")
 if result:
     st.divider()
-    tabs = st.tabs(
-        [
-            "📜 最终报告",
-            "💬 追问",
-            "🔮 排盘",
-            "1️⃣ 第一轮",
-            "2️⃣ 第二轮",
-            "⚖️ 仲裁日志",
-            "💾 下载",
-        ]
-    )
 
-    with tabs[0]:
+    nav_cols = st.columns(len(RESULT_TAB_LABELS))
+    for ti, label in enumerate(RESULT_TAB_LABELS):
+        active = st.session_state["result_tab_idx"] == ti
+        if nav_cols[ti].button(
+            label,
+            key=f"result_nav_{ti}",
+            use_container_width=True,
+            type="primary" if active else "secondary",
+        ):
+            st.session_state["result_tab_idx"] = ti
+
+    tab_idx = st.session_state["result_tab_idx"]
+    if tab_idx < 0 or tab_idx >= len(RESULT_TAB_LABELS):
+        tab_idx = 0
+        st.session_state["result_tab_idx"] = 0
+
+    if tab_idx == 0:
         st.markdown(result["final_report"])
 
-    with tabs[1]:
+    elif tab_idx == RESULT_TAB_FOLLOWUP:
         st.caption(
             "基于当前这一次分析的排盘、共识与报告作答；会调用 OpenRouter（消耗额度）。"
             f"同一报告最多追问 **{MAX_FOLLOWUP_QUESTIONS}** 次；重新「开始分析」后追问记录会清空。"
@@ -475,13 +498,14 @@ if result:
                     st.markdown("**回答**")
                     st.markdown(turn.get("answer") or "")
         else:
-            st.info("还没有追问。可以先在「最终报告」 tab 看完结论，再在此输入问题。")
+            st.info("还没有追问。可以先在「📜 最终报告」分区看完结论，再在此输入问题。")
 
+        _fq_rev = int(st.session_state.get("followup_input_revision", 0))
         fq = st.text_area(
             "输入追问（可多轮）",
             height=120,
             placeholder="例如：未来三年若有跳槽打算，哪些年份更值得争取？依据报告里哪一段？",
-            key="followup_question_input",
+            key=f"followup_question_input_v{_fq_rev}",
         )
         c_f1, c_f2 = st.columns([1, 1])
         with c_f1:
@@ -494,6 +518,7 @@ if result:
         with c_f2:
             if st.button("清空追问记录", key="followup_clear_btn"):
                 st.session_state["followup_turns"] = []
+                st.session_state["followup_input_revision"] = _fq_rev + 1
                 st.rerun()
 
         if send_follow:
@@ -506,7 +531,15 @@ if result:
                 st.warning("请先输入追问内容")
             else:
                 try:
-                    with st.spinner(f"追问中（{follow_model}）…"):
+                    status_msg = (
+                        f"🧠 **正在思考中** · 模型 `{follow_model}` 生成回答中，"
+                        "可能需要数十秒。**页面未卡住**，请稍候。"
+                    )
+                    with st.status("🧠 正在思考中…", expanded=True) as thought:
+                        st.markdown(status_msg)
+                        st.caption(
+                            "模型推理可能需要数十秒；页面仍在工作。若长时间无响应，多半是网络或 API 限流，可稍后重试。"
+                        )
                         ans = answer_followup(
                             result["chart"],
                             result.get("events") or [],
@@ -519,16 +552,18 @@ if result:
                             api_key,
                             follow_model,
                         )
+                        thought.update(label="✅ 回答已生成", state="complete")
                 except Exception as e:
                     st.error(f"追问失败：{e}")
                 else:
                     st.session_state.setdefault("followup_turns", []).append(
                         {"question": qtext, "answer": ans}
                     )
-                    st.session_state.pop("followup_question_input", None)
+                    st.session_state["result_tab_idx"] = RESULT_TAB_FOLLOWUP
+                    st.session_state["followup_input_revision"] = _fq_rev + 1
                     st.rerun()
 
-    with tabs[2]:
+    elif tab_idx == 2:
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("四柱")
@@ -539,7 +574,7 @@ if result:
             st.subheader("大运")
             st.markdown(_to_markdown(result["chart"]["da_yun"]))
 
-    with tabs[3]:
+    elif tab_idx == 3:
         st.subheader("整合共识")
         st.markdown(_to_markdown(result["round1_consensus"]))
         st.subheader("各模型原始输出")
@@ -547,16 +582,16 @@ if result:
             with st.expander(f"{r.get('_speaker')} — {r.get('_model')}"):
                 st.markdown(_to_markdown(r))
 
-    with tabs[4]:
+    elif tab_idx == 4:
         st.markdown(_to_markdown(result["round2_result"]))
 
-    with tabs[5]:
+    elif tab_idx == 5:
         if result["reconcile_log"]:
             st.markdown(_to_markdown(result["reconcile_log"]))
         else:
             st.info("无冲突，未触发仲裁")
 
-    with tabs[6]:
+    elif tab_idx == 6:
         out_dir = Path(result["output_dir"])
         st.write(f"输出目录：`{out_dir}`")
         markdown_exports = [
