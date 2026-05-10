@@ -1,11 +1,11 @@
 MODEL_GPT = "openai/gpt-4o"
 MODEL_GEMINI = "google/gemini-2.5-pro"
-# MODEL_CLAUDE = "anthropic/claude-opus-4.6"
+MODEL_CLAUDE_OPUS = "anthropic/claude-opus-4.7"
 MODEL_QWEN = "qwen/qwen-2.5-72b-instruct"
 MODEL_DEEPSEEK = "deepseek/deepseek-v4-flash"
 
 DEFAULT_CONSENSUS_MODEL = MODEL_GPT
-DEFAULT_FINAL_MODEL = MODEL_GEMINI
+DEFAULT_FINAL_MODEL = MODEL_CLAUDE_OPUS
 DEFAULT_ROUNDS = 2
 DEFAULT_OUTPUT_DEBATE_DOCX = "results/bazi_debate.docx"
 DEFAULT_OUTPUT_RESULT_DOCX = "results/bazi_result.docx"

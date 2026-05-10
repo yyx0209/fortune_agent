@@ -19,6 +19,7 @@ from openrouter_client import call_json_openrouter
 from config import (
     MODEL_GPT,
     MODEL_GEMINI,
+    MODEL_CLAUDE_OPUS,
     MODEL_QWEN,
     MODEL_DEEPSEEK,
     DEFAULT_CONSENSUS_MODEL,
@@ -60,6 +61,7 @@ MODEL_OPTIONS = [
     MODEL_GEMINI,
     MODEL_QWEN,
     MODEL_DEEPSEEK,
+    MODEL_CLAUDE_OPUS,
 ]
 
 MAX_FOLLOWUP_QUESTIONS = 5
