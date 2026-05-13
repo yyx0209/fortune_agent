@@ -180,7 +180,7 @@ if __name__ == "__main__":
         {input}
     """
 
-    model_a = "openai/gpt-4o"
+    model_a = "openai/gpt-5.5"
     model_b = "anthropic/claude-opus-4.6"
 
     # api_key = os.getenv("OPENROUTER_API_KEY")

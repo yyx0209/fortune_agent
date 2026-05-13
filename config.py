@@ -1,8 +1,8 @@
-MODEL_GPT = "openai/gpt-4o"
+MODEL_GPT = "openai/gpt-5.5"
 MODEL_GEMINI = "google/gemini-2.5-pro"
 MODEL_CLAUDE_OPUS = "anthropic/claude-opus-4.7"
-MODEL_QWEN = "qwen/qwen-2.5-72b-instruct"
-MODEL_DEEPSEEK = "deepseek/deepseek-v4-flash"
+MODEL_QWEN = "qwen/qwen3-235b-a22b-2507"
+MODEL_DEEPSEEK = "deepseek/deepseek-v4-pro"
 
 DEFAULT_CONSENSUS_MODEL = MODEL_GPT
 DEFAULT_FINAL_MODEL = MODEL_CLAUDE_OPUS
