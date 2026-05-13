@@ -1,4 +1,4 @@
-MODEL_GPT = "openai/gpt-5.5"
+MODEL_GPT = "openai/gpt-4o"
 MODEL_GEMINI = "google/gemini-2.5-pro"
 MODEL_CLAUDE_OPUS = "anthropic/claude-opus-4.7"
 MODEL_QWEN = "qwen/qwen3-235b-a22b-2507"

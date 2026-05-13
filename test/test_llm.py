@@ -14,7 +14,7 @@ def test_openrouter_model(
     Test whether an OpenRouter model can return a valid response.
 
     Args:
-        model (str): model name, e.g. "openai/gpt-5.5"
+        model (str): model name, e.g. "openai/gpt-4o"
         query (str): input prompt
         api_key (str): OpenRouter API key
         timeout (int): request timeout (seconds)
@@ -108,7 +108,7 @@ if __name__ == "__main__":
 
     print(result['response'])
 
-# openai/gpt-5.5
+# openai/gpt-4o
 # google/gemini-2.5-pro
 # anthropic/claude-opus-4.6
 # qwen/qwen3-235b-a22b-2507
